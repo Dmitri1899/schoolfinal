@@ -7,9 +7,9 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-# =====================================
-# 페이지 설정
-# =====================================
+# =========================================
+# 페이지 설정 및 중앙 UI 디자인
+# =========================================
 st.set_page_config(
     page_title="SchoolMove | 통학비 분석",
     page_icon="🚌",
@@ -19,132 +19,156 @@ st.set_page_config(
 st.markdown("""
 <style>
     .block-container {
-        max-width: 1150px;
+        max-width: 1100px;
         padding-top: 2rem;
         padding-bottom: 3rem;
+        padding-left: 2rem;
+        padding-right: 2rem;
     }
+
     div[data-testid="stMetric"] {
         background: #f8fafc;
-        padding: 14px;
+        border: 1px solid #e2e8f0;
         border-radius: 12px;
-        border: 1px solid #e5e7eb;
+        padding: 16px;
+    }
+
+    div.stButton > button {
+        width: 100%;
+        min-height: 65px;
+        border-radius: 10px;
+        font-size: 17px;
+        font-weight: 600;
+    }
+
+    div[data-testid="stHorizontalBlock"] {
+        gap: 1rem;
     }
 </style>
 """, unsafe_allow_html=True)
 
 st.title("🚌 SchoolMove")
-st.write("나의 등하교 교통비를 계산하고 월별 지출을 분석하세요.")
-
-# =====================================
-# 분석 방식 선택
-# =====================================
-st.sidebar.header("📊 분석 방식")
-
-mode = st.sidebar.radio(
-    "원하는 분석 방법을 선택하세요.",
-    [
-        "등교일 수 기준",
-        "월별 등교일 분석"
-    ]
+st.write(
+    "등하교 일수와 달력을 분석해 "
+    "예상 교통비를 계산하는 통학비 관리 앱입니다."
 )
 
-st.sidebar.divider()
-st.sidebar.header("⚙️ 통학 조건")
+# =========================================
+# 상단 분석 방식 선택 버튼
+# =========================================
+if "analysis_mode" not in st.session_state:
+    st.session_state.analysis_mode = "등교일 수 기준"
 
-fare = st.sidebar.number_input(
-    "편도 교통요금 (원)",
-    min_value=0,
-    value=1500,
-    step=50
-)
+st.subheader("분석 방식 선택")
+st.caption("원하는 분석 방식을 선택하면 입력 항목이 자동으로 변경됩니다.")
 
-weekday_trips = st.sidebar.selectbox(
-    "평일 하루 이용 횟수",
-    [1, 2, 3, 4],
-    index=1,
-    format_func=lambda x: {
-        1: "편도 1회",
-        2: "왕복 2회",
-        3: "3회",
-        4: "4회"
-    }[x]
-)
+button1, button2 = st.columns(2)
 
-include_weekends = st.sidebar.checkbox(
-    "주말 교통비 포함",
-    value=False
-)
+with button1:
+    if st.button(
+        "📅 등교일 수 기준",
+        type="primary" if st.session_state.analysis_mode == "등교일 수 기준" else "secondary",
+        key="mode_manual",
+        use_container_width=True
+    ):
+        st.session_state.analysis_mode = "등교일 수 기준"
 
-weekend_trips = st.sidebar.selectbox(
-    "주말 하루 이용 횟수",
-    [1, 2, 3, 4],
-    index=1,
-    format_func=lambda x: {
-        1: "편도 1회",
-        2: "왕복 2회",
-        3: "3회",
-        4: "4회"
-    }[x],
-    disabled=not include_weekends
-)
+with button2:
+    if st.button(
+        "🗓️ 월별 등교일 분석",
+        type="primary" if st.session_state.analysis_mode == "월별 등교일 분석" else "secondary",
+        key="mode_calendar",
+        use_container_width=True
+    ):
+        st.session_state.analysis_mode = "월별 등교일 분석"
 
-budget = st.sidebar.number_input(
+mode = st.session_state.analysis_mode
+
+if mode == "등교일 수 기준":
+    st.info(
+        "선택한 월의 등교 일수를 직접 입력하여 "
+        "간편하게 교통비를 계산합니다."
+    )
+else:
+    st.info(
+        "선택한 연도의 달력을 분석하여 월별 평일, 주말, "
+        "공휴일을 기준으로 교통비를 계산합니다."
+    )
+
+st.divider()
+
+# =========================================
+# 공통 입력: 교통수단과 요금
+# =========================================
+st.subheader("1. 교통 조건 설정")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    transport = st.selectbox(
+        "주로 이용하는 교통수단",
+        ["버스", "지하철", "버스 + 지하철 환승", "기타 교통수단"]
+    )
+
+with col2:
+    fare = st.number_input(
+        "선택한 교통수단의 편도 요금 (원)",
+        min_value=0,
+        value=1500,
+        step=50
+    )
+
+col3, col4 = st.columns(2)
+
+with col3:
+    weekday_trips = st.selectbox(
+        "평일 하루 이용 횟수",
+        options=[1, 2, 3, 4],
+        index=1,
+        format_func=lambda x: {
+            1: "편도 1회",
+            2: "왕복 2회",
+            3: "3회",
+            4: "4회"
+        }[x]
+    )
+
+with col4:
+    include_weekends = st.checkbox(
+        "주말 교통비 포함",
+        value=False
+    )
+
+weekend_trips = 2
+
+if include_weekends:
+    weekend_trips = st.selectbox(
+        "주말 하루 이용 횟수",
+        options=[1, 2, 3, 4],
+        index=1,
+        format_func=lambda x: {
+            1: "편도 1회",
+            2: "왕복 2회",
+            3: "3회",
+            4: "4회"
+        }[x]
+    )
+
+budget = st.number_input(
     "월간 교통비 예산 (원)",
     min_value=0,
     value=70000,
     step=5000
 )
 
-# =====================================
-# 교통수단별 비교 요금
-# =====================================
-st.subheader("교통수단별 요금 설정")
-st.caption("기본 요금은 예시입니다. 실제 결제 요금에 맞게 수정하세요.")
+st.divider()
 
-col1, col2 = st.columns(2)
-
-with col1:
-    bus_fare = st.number_input(
-        "버스 편도 요금 (원)",
-        min_value=0,
-        value=1500,
-        step=50
-    )
-    subway_fare = st.number_input(
-        "지하철 편도 요금 (원)",
-        min_value=0,
-        value=1500,
-        step=50
-    )
-
-with col2:
-    transfer_fare = st.number_input(
-        "환승 편도 요금 (원)",
-        min_value=0,
-        value=1600,
-        step=50
-    )
-    other_fare = st.number_input(
-        "기타 교통수단 편도 요금 (원)",
-        min_value=0,
-        value=2000,
-        step=50
-    )
-
-fares = {
-    "버스": bus_fare,
-    "지하철": subway_fare,
-    "버스 + 지하철 환승": transfer_fare,
-    "기타 교통수단": other_fare
-}
-
-# =====================================
+# =========================================
 # 분석 방식 1: 등교일 수 직접 입력
-# =====================================
+# =========================================
 if mode == "등교일 수 기준":
 
-    st.header("📅 등교일 수 기준 분석")
-    st.write("한 달 등교 일수를 직접 입력해 예상 교통비를 계산합니다.")
+    st.subheader("2. 등교일 정보")
 
     col1, col2 = st.columns(2)
 
@@ -158,91 +182,105 @@ if mode == "등교일 수 기준":
         )
 
     with col2:
-        selected_transport = st.selectbox(
-            "주로 이용하는 교통수단",
-            list(fares.keys())
+        selected_month = st.selectbox(
+            "분석할 월",
+            list(range(1, 13)),
+            index=date.today().month - 1,
+            format_func=lambda x: f"{x}월"
         )
 
-    selected_fare = fares[selected_transport]
-
-    weekday_cost = (
-        school_days * weekday_trips * selected_fare
-    )
-
-    # 주말 이용은 등교일과 별도로 추가
     weekend_days = 0
 
     if include_weekends:
         weekend_days = st.number_input(
-            "한 달 주말 이용 일수",
+            "해당 월 주말 이용 일수",
             min_value=0,
-            max_value=10,
+            max_value=31,
             value=4,
             step=1
         )
 
+    weekday_cost = school_days * weekday_trips * fare
+
     weekend_cost = (
-        weekend_days * weekend_trips * selected_fare
+        weekend_days * weekend_trips * fare
         if include_weekends else 0
     )
 
     monthly_cost = weekday_cost + weekend_cost
     annual_cost = monthly_cost * 12
 
-    result_df = pd.DataFrame({
-        "구분": ["평일", "주말"],
-        "이용 일수": [school_days, weekend_days],
-        "교통비": [weekday_cost, weekend_cost]
-    })
+    result_df = pd.DataFrame([{
+        "분석 월": f"{selected_month}월",
+        "등교 일수": school_days,
+        "주말 이용 일수": weekend_days,
+        "평일 교통비": weekday_cost,
+        "주말 교통비": weekend_cost,
+        "월간 예상 교통비": monthly_cost
+    }])
+
+    st.caption(
+        "이 방식은 선택한 월의 등교 일수를 직접 입력합니다. "
+        "연간 비용은 이 월의 비용이 12개월 동안 같다고 가정한 추정치입니다."
+    )
 
     st.divider()
-    st.subheader("계산 결과")
+    st.subheader("3. 계산 결과")
 
     c1, c2, c3 = st.columns(3)
 
-    c1.metric("하루 평일 교통비",
-              f"{weekday_trips * selected_fare:,}원")
-    c2.metric("월간 예상 교통비",
-              f"{monthly_cost:,}원")
-    c3.metric("연간 예상 교통비",
-              f"{annual_cost:,}원")
+    c1.metric(
+        "하루 평일 교통비",
+        f"{weekday_trips * fare:,}원"
+    )
 
-    monthly_data = []
+    c2.metric(
+        "월간 예상 교통비",
+        f"{monthly_cost:,}원"
+    )
 
-    for month in range(1, 13):
-        monthly_data.append({
+    c3.metric(
+        "연간 예상 교통비",
+        f"{annual_cost:,}원"
+    )
+
+    df = pd.DataFrame([
+        {
             "월": f"{month}월",
             "평일 교통비": weekday_cost,
             "주말 교통비": weekend_cost,
             "월간 예상 교통비": monthly_cost
-        })
+        }
+        for month in range(1, 13)
+    ])
 
-    df = pd.DataFrame(monthly_data)
-
-    st.info(
-        "이 방식은 매월 입력한 등교 일수가 동일하다고 가정해 "
-        "연간 비용을 추정합니다."
-    )
-
-# =====================================
-# 분석 방식 2: 실제 달력 기준
-# =====================================
+# =========================================
+# 분석 방식 2: 달력 기반 월별 분석
+# =========================================
 else:
 
-    st.header("🗓️ 월별 등교일 분석")
-    st.write("선택한 연도의 달력을 이용해 월별 평일과 주말을 분석합니다.")
+    st.subheader("2. 분석할 연도 및 공휴일 설정")
 
-    year = st.number_input(
-        "분석 연도",
-        min_value=2020,
-        max_value=2100,
-        value=date.today().year,
-        step=1
-    )
+    col1, col2 = st.columns(2)
 
-    exclude_holidays = st.checkbox(
-        "평일 공휴일을 등교일에서 제외",
-        value=True
+    with col1:
+        year = st.number_input(
+            "분석 연도",
+            min_value=2020,
+            max_value=2100,
+            value=date.today().year,
+            step=1
+        )
+
+    with col2:
+        exclude_holidays = st.checkbox(
+            "평일 공휴일을 등교일에서 제외",
+            value=True
+        )
+
+    st.caption(
+        "한국 공휴일은 holidays 라이브러리 기준으로 계산합니다. "
+        "학교 방학과 재량휴업일은 별도로 반영해야 합니다."
     )
 
     kr_holidays = holidays.country_holidays(
@@ -264,10 +302,7 @@ else:
 
         for day in range(1, days_in_month + 1):
 
-            current_date = date(
-                int(year), month, day
-            )
-
+            current_date = date(int(year), month, day)
             holiday_name = kr_holidays.get(current_date)
 
             if current_date.weekday() < 5:
@@ -283,9 +318,7 @@ else:
         else:
             commute_days = weekdays
 
-        weekday_cost = (
-            commute_days * weekday_trips * fare
-        )
+        weekday_cost = commute_days * weekday_trips * fare
 
         weekend_cost = (
             weekends * weekend_trips * fare
@@ -311,8 +344,10 @@ else:
     total_weekends = int(df["주말 수"].sum())
     total_holidays = int(df["평일 공휴일 수"].sum())
     total_school_days = int(df["예상 등교일"].sum())
+    annual_cost = int(df["월간 예상 교통비"].sum())
 
-    st.subheader(f"{int(year)}년 달력 분석 결과")
+    st.divider()
+    st.subheader(f"3. {int(year)}년 달력 분석 결과")
 
     c1, c2, c3, c4 = st.columns(4)
 
@@ -321,13 +356,11 @@ else:
     c3.metric("평일 공휴일", f"{total_holidays:,}일")
     c4.metric("예상 등교일", f"{total_school_days:,}일")
 
-    annual_cost = int(df["월간 예상 교통비"].sum())
-
     st.metric("연간 예상 교통비", f"{annual_cost:,}원")
 
-# =====================================
-# 공통: 월별 비용 그래프
-# =====================================
+# =========================================
+# 공통 결과: 그래프
+# =========================================
 st.divider()
 st.subheader("📈 월별 예상 교통비")
 
@@ -346,17 +379,17 @@ fig.update_traces(
 )
 
 fig.update_layout(
-    yaxis_title="예상 교통비 (원)",
     xaxis_title="월",
+    yaxis_title="예상 교통비 (원)",
     yaxis_rangemode="tozero"
 )
 
 st.plotly_chart(fig, use_container_width=True)
 
-# =====================================
-# 공통: 평일 / 주말 그래프
-# =====================================
-st.subheader("평일과 주말 교통비 비교")
+# =========================================
+# 공통 결과: 평일 및 주말 비교
+# =========================================
+st.subheader("평일·주말 교통비 비교")
 
 cost_df = df[
     ["월", "평일 교통비", "주말 교통비"]
@@ -372,30 +405,29 @@ fig2 = px.bar(
     y="교통비",
     color="구분",
     barmode="group",
-    title="월별 평일·주말 교통비"
+    title="월별 평일 및 주말 교통비"
 )
 
 fig2.update_layout(
-    yaxis_title="예상 교통비 (원)",
+    xaxis_title="월",
+    yaxis_title="교통비 (원)",
     yaxis_rangemode="tozero"
 )
 
 st.plotly_chart(fig2, use_container_width=True)
 
-# =====================================
-# 공통: 비용 비교표
-# =====================================
-st.subheader("월별 비용 상세")
+# =========================================
+# 공통 결과: 표
+# =========================================
+st.subheader("📊 월별 상세 데이터")
 
 display_df = df.copy()
 
-money_columns = [
+for column in [
     "평일 교통비",
     "주말 교통비",
     "월간 예상 교통비"
-]
-
-for column in money_columns:
+]:
     display_df[column] = display_df[column].map(
         lambda x: f"{x:,}원"
     )
@@ -406,11 +438,11 @@ st.dataframe(
     hide_index=True
 )
 
-# =====================================
-# 공통: 예산 분석
-# =====================================
+# =========================================
+# 공통 결과: 예산 분석
+# =========================================
 st.divider()
-st.subheader("💳 월간 예산 분석")
+st.subheader("💳 예산 분석")
 
 average_cost = annual_cost / 12
 remaining = budget - average_cost
@@ -418,7 +450,7 @@ remaining = budget - average_cost
 c1, c2, c3 = st.columns(3)
 
 c1.metric("월간 예산", f"{budget:,}원")
-c2.metric("월평균 예상 교통비", f"{average_cost:,.0f}원")
+c2.metric("월평균 교통비", f"{average_cost:,.0f}원")
 c3.metric("평균 예산 잔액", f"{remaining:,.0f}원")
 
 if budget > 0:
@@ -429,22 +461,20 @@ if budget > 0:
     st.progress(min(usage, 1.0))
 
     if average_cost > budget:
-        st.warning("월평균 예상 교통비가 예산을 초과합니다.")
+        st.warning("월평균 교통비가 설정한 예산을 초과합니다.")
     else:
-        st.success("월평균 예상 교통비가 예산 이내입니다.")
+        st.success("월평균 교통비가 설정한 예산 이내입니다.")
 
 else:
     st.info("예산을 0원보다 크게 설정하면 예산 사용률을 확인할 수 있습니다.")
 
-# =====================================
-# CSV 다운로드
-# =====================================
+# =========================================
+# 공통 결과: CSV 다운로드
+# =========================================
 st.divider()
 st.subheader("📥 분석 결과 다운로드")
 
-csv_data = df.to_csv(
-    index=False
-).encode("utf-8-sig")
+csv_data = df.to_csv(index=False).encode("utf-8-sig")
 
 st.download_button(
     label="월별 교통비 분석 CSV 다운로드",
@@ -454,8 +484,10 @@ st.download_button(
 )
 
 st.caption(
-    "계산 결과는 입력한 요금과 설정을 바탕으로 한 예상치입니다. "
-    "월별 분석은 평일·주말·공휴일을 기준으로 하며, "
+    "모든 결과는 입력한 요금에 따른 예상치입니다. "
+    "달력 분석은 평일·주말·공휴일을 기준으로 하며, "
     "학교 방학, 재량휴업일, 결석, 실제 환승 할인 등은 "
     "자동 반영되지 않습니다."
 )
+
+
